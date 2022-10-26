@@ -22,9 +22,9 @@ CPU cores and 100 GB of storage.
 First, open a terminal window and install Juju, Multipass and kubectl.
 
 ```bash
-ubuntu@host:~$ sudo snap install juju
-ubuntu@host:~$ sudo snap install multipass
-ubuntu@host:~$ sudo snap install kubectl --classic
+sudo snap install juju --classic
+sudo snap install multipass
+sudo snap install kubectl --classic
 ```
 
 ### Creating the environment
@@ -32,15 +32,15 @@ ubuntu@host:~$ sudo snap install kubectl --classic
 First, create 3 virtual machines using multipass.
 
 ```bash
-ubuntu@host:~$ multipass launch --name magma-orchestrator --mem=8G --disk=40G --cpus=6 20.04
-ubuntu@host:~$ multipass launch --name magma-access-gateway --mem=4G --disk=40G --cpus=2 --network=mpbr0 20.04
-ubuntu@host:~$ multipass launch --name srsran --mem=4G --disk=20G --cpus=2 20.04
+multipass launch --name magma-orchestrator --mem=8G --disk=40G --cpus=6 20.04
+multipass launch --name magma-access-gateway --mem=4G --disk=40G --cpus=2 --network=mpbr0 20.04
+multipass launch --name srsran --mem=4G --disk=20G --cpus=2 20.04
 ```
 
 List the created virtual machines and their addresses:
 
 ```bash
-ubuntu@host:~$ multipass list
+multipass list
 Name                    State             IPv4             Image
 magma-access-gateway    Running           10.24.157.231    Ubuntu 22.04 LTS
 magma-orchestrator      Running           10.24.157.52     Ubuntu 22.04 LTS
@@ -50,31 +50,31 @@ srsran                  Running           10.24.157.67     Ubuntu 22.04 LTS
 Note the addresses associated with each virtual machine, we will need those later. Yours will be 
 different of course.
 
-Now, connect to the virtual machine that we named `magma-orchestrator`:
+Now, connect to the virtual machine that we named `magma-orchestrator`, note that the shell session now switches to that machine:
 
 ```bash
-ubuntu@host:~$ multipass shell magma-orchestrator
+multipass shell magma-orchestrator
 ```
 
 Then install MicroK8s and configure the network:
 
 ```bash
-ubuntu@magma-orchestrator:~$ sudo snap install microk8s --channel=1.22/stable --classic
-ubuntu@magma-orchestrator:~$ sudo ufw default allow routed
+sudo snap install microk8s --channel=1.22/stable --classic
+sudo ufw default allow routed
 ```
 
 Add the ubuntu user to the microk8s group:
 
 ```bash
-ubuntu@magma-orchestrator:~$ sudo usermod -a -G microk8s ubuntu
-ubuntu@magma-orchestrator:~$ sudo chown -f -R ubuntu ~/.kube
-ubuntu@magma-orchestrator:~$ newgrp microk8s
+sudo usermod -a -G microk8s ubuntu
+sudo chown -f -R ubuntu ~/.kube
+newgrp microk8s
 ```
 
 Enable the following microk8s add-ons:
 
 ```bash
-ubuntu@magma-orchestrator:~$ microk8s enable dns storage
+microk8s enable dns storage
 ```
 
 Enable the metallb add-on. Here we need to provide a range of 5 IP addresses on the same subnet
@@ -82,27 +82,27 @@ that is already used by the VM. Make sure to use a range that does not include a
 provided to the VM's.
 
 ```bash
-ubuntu@magma-orchestrator:~$ microk8s enable metallb:10.24.157.80-10.24.157.85
+microk8s enable metallb:10.24.157.80-10.24.157.85
 ```
 
 Output the kubernetes configuration to a file:
 
 ```bash
-ubuntu@magma-orchestrator:~$ microk8s config > config
+microk8s config > config
 ```
 
 Now, from the host terminal, retrieve the configuration file and place it under the `~/.kube/` 
 directory:
 
 ```bash
-ubuntu@host:~$ multipass transfer magma-orchestrator:config .
-ubuntu@host:~$ mv config ~/.kube/
+multipass transfer magma-orchestrator:config .
+mv config ~/.kube/
 ```
 
 Validate that you can run kubectl commands:
 
 ```bash
-ubuntu@host:~$ kubectl get nodes
+kubectl get nodes
 NAME                 STATUS   ROLES    AGE    VERSION
 magma-orchestrator   Ready    <none>   104s   v1.25.2
 ```
@@ -114,9 +114,9 @@ magma-orchestrator   Ready    <none>   104s   v1.25.2
 Bootstrap a Juju controller on the Kubernetes instance we just created:
 
 ```bash
-ubuntu@host:~$ juju add-k8s magma-orchestrator-k8s --client
-ubuntu@host:~$ juju bootstrap magma-orchestrator-k8s
-ubuntu@host:~$ juju add-model magma-orchestrator
+juju add-k8s magma-orchestrator-k8s --client
+juju bootstrap magma-orchestrator-k8s
+juju add-model magma-orchestrator
 ```
 
 ### Deploying Magma Orchestrator
@@ -140,7 +140,7 @@ applications:
 Deploy Magma Orchestrator:
 
 ```bash
-ubuntu@host:~$ juju deploy magma-orc8r --overlay overlay.yaml --trust --channel=beta
+juju deploy magma-orc8r --overlay overlay.yaml --trust --channel=beta
 ```
 
 You can see the deployment's status by running `juju status`. The deployment is completed when 
@@ -148,7 +148,7 @@ all units are in the `Active-Idle` state. This step can take a lot of time, expe
 10-15 minutes.
 
 ```bash
-ubuntu@host:~$ juju status
+watch --color juju status --color
 Model               Controller                          Cloud/Region                        Version  SLA          Timestamp
 magma-orchestrator  magma-orchestrator-k8s-localhost  magma-orchestrator-k8s/localhost  2.9.35   unsupported  18:19:48-04:00
 
@@ -197,22 +197,22 @@ First, retrieve the PFX package and password that contains the certificates to a
 Magma Orchestrator:
 
 ```bash
-ubuntu@host:~$ juju scp --container="magma-orc8r-certifier" orc8r-certifier/0:/var/opt/magma/certs/admin_operator.pfx admin_operator.pfx
-ubuntu@host:~$ juju run-action orc8r-certifier/leader get-pfx-package-password --wait
+juju scp --container="magma-orc8r-certifier" orc8r-certifier/0:/var/opt/magma/certs/admin_operator.pfx admin_operator.pfx
+juju run-action orc8r-certifier/leader get-pfx-package-password --wait
 ```
 
 The pfx package was copied to your current working directory. If you are using Google Chrome, 
 navigate to `chrome://settings/certificates?search=https`, click on Import, select 
 the `admin_operator.pfx` package that we just copied and write in the password that you received.
 
-> **SHOW PICTURE OF HOW THIS IS LOADED IN GOOGLE CHROME**  # TODO
+![image](https://user-images.githubusercontent.com/5586487/197983815-cbe5838d-1580-4a59-9e89-efafc251b6b9.png)
 
 ### Setupping DNS
 
 Now, retrieve the list of services that need to be exposed:
 
 ```bash
-ubuntu@host:~$ juju run-action orc8r-orchestrator/leader get-load-balancer-services --wait
+juju run-action orc8r-orchestrator/leader get-load-balancer-services --wait
 ```
 
 In your host, create A records for the following Kubernetes services:  # TODO (and also must be added to agw)
@@ -230,7 +230,7 @@ Offer an application endpoint that we will use later for our network core to
 relate to our orchestrator:
 
 ```bash
-ubuntu@host:~$ juju offer orc8r-nginx:orchestrator
+juju offer orc8r-nginx:orchestrator
 ```
 
 ### Verify the deployment
@@ -238,7 +238,7 @@ ubuntu@host:~$ juju offer orc8r-nginx:orchestrator
 Get the master organization's username and password:
 
 ```bash
-ubuntu@host:~$ juju run-action nms-magmalte/leader get-master-admin-credentials --wait
+juju run-action nms-magmalte/leader get-master-admin-credentials --wait
 ```
 
 Confirm successful deployment by visiting `https://master.nms.awesome.com` and logging in
@@ -249,12 +249,14 @@ with the `admin-username` and `admin-password` outputted here.
 
 ### Bootstrapping a new Juju controller
 
-First, create a shell in the `magma-access-gateway` virtual machine and list all the network 
-interfaces it has:
+First, create a shell in the `magma-access-gateway` virtual machine:
 
 ```bash
-ubuntu@host:~$ multipass shell magma-access-gateway
-ubuntu@magma-access-gateway:~$ ip -br address show scope global
+multipass shell magma-access-gateway
+```
+And list all the network interfaces it has:
+```bash
+ip -br address show scope global
 enp5s0           UP             10.24.157.111/24 metric 100 fd42:c027:d54:8986:5054:ff:fe10:62b8/64 
 enp6s0           UP             10.24.157.70/24 metric 200 fd42:c027:d54:8986:5054:ff:fe0a:6671/64
 ```
@@ -264,7 +266,7 @@ Note the two interfaces, **enp5s0** and **enp6s0** in my example. Yours may vary
 From the host, bootstrap a **new** juju controller:
 
 ```bash
-ubuntu@host:~$ juju bootstrap localhost virtual-machine
+juju bootstrap localhost virtual-machine
 ```
 
 > We are now using two juju controllers, one to manage our Kubernetes environment and the second to 
@@ -276,22 +278,22 @@ Copy the `magma-access-gateway` private ssh key to your host's home directory an
 for it to be usable by juju:
 
 ```bash
-ubuntu@host:~$ sudo cp /var/snap/multipass/common/data/multipassd/ssh-keys/id_rsa .
-ubuntu@host:~$ sudo chmod 600 id_rsa
-ubuntu@host:~$ sudo chown $USER id_rsa
+sudo cp /var/snap/multipass/common/data/multipassd/ssh-keys/id_rsa .
+sudo chmod 600 id_rsa
+sudo chown $USER id_rsa
 ```
 
 From the `virtual-machine` juju controller, add the access-gateway virtual machine to Juju. Here use
 the actual IP address of the `magma-access-gateway` machine:
 
 ```bash
-ubuntu@host:~$ juju add-machine ssh:ubuntu@10.24.157.111 --private-key=id_rsa
+juju add-machine ssh:ubuntu@10.24.157.111 --private-key=id_rsa
 ```
 
 Validate that the machine is available:
 
 ```bash
-guillaume@thinkpad:~/orc8r_deployment$ juju machines
+juju machines
 Machine  State    Address        Inst id               Series  AZ  Message
 0        started  10.24.157.241  manual:10.24.157.241  focal       Manually provisioned machine
 ```
@@ -301,7 +303,7 @@ Machine  State    Address        Inst id               Series  AZ  Message
 Deploy Access Gateway with the interfaces listed earlier (enp5s0 and enp6s0):
 
 ```bash
-ubuntu@host:~$ juju deploy magma-access-gateway-operator --config sgi=enp5s0 --config s1=enp6s0 --channel=beta --to 0
+juju deploy magma-access-gateway-operator --config sgi=enp5s0 --config s1=enp6s0 --channel=beta --to 0
 ```
 
 You can see the deployment's status by running `juju status`. The deployment is completed when 
@@ -309,7 +311,7 @@ the application is in the `Active-Idle` state. This step can take a lot of time,
 10-15 minutes.
 
 ```bash
-ubuntu@host:~$ juju status
+watch --color juju status --color
 Model    Controller        Cloud/Region         Version  SLA          Timestamp
 default  virtual-machines  localhost/localhost  2.9.35   unsupported  15:46:28-04:00
 
@@ -329,14 +331,14 @@ Relate the newly created Magma Access Gateway with the Orchestrator, leveraging 
 we created earlier.
 
 ```bash
-ubuntu@host:~$ juju relate magma-access-gateway-operator magma-orchestrator-k8s:magma-orchestrator.orc8r-nginx
+juju relate magma-access-gateway-operator magma-orchestrator-k8s-localhost:magma-orchestrator.orc8r-nginx
 ```
 
 Wait for the application to go back to `Active-Idle`:
 
 ```bash
 
-ubuntu@host:~$ juju status
+ubuntu@host:~$ watch --color juju status --color
 Model    Controller        Cloud/Region         Version  SLA          Timestamp
 default  virtual-machines  localhost/localhost  2.9.35   unsupported  15:50:07-04:00
 
